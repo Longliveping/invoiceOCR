@@ -1,0 +1,12 @@
+opencv-python-headless
+opencv-contrib-python-headless
+flask
+flask_restful
+werkzeug
+pandas
+paddlepaddle
+paddleocr
+pillow
+pyperclip
+splinter
+pillow
