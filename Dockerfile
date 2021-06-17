@@ -8,4 +8,4 @@ WORKDIR /invoiceOCR
 
 RUN pip3.7 install -r requirements.txt -i https://mirror.baidu.com/pypi/simple
 
-CMD ["python3", "/app/main.py" ]
+CMD ["python3", "app/main.py" ]
