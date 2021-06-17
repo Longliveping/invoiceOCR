@@ -2,9 +2,6 @@ import pandas as pd
 from splinter import Browser
 import time
 import pyperclip
-# import cv2
-# import numpy as np
-# from pyzbar.pyzbar import decode
 from paddleocr import PaddleOCR
 from PIL import Image
 import re
@@ -31,90 +28,163 @@ def ocr_image(img_path, rotate=False):
     result = ocr.ocr(img_path)
     return result
 
-def check_fp(ocr_result):
-    passed = [False,False,False,False,False] # 发票代码, 发票号码, 开票日期, 校验码, 金额
-    fp = ['','','','',0]
+def check_type(ocr_result):
+    for i, line in enumerate(ocr_result):
+        # print(i, line)
+        # print(i, line[-1][0])
+        s = str(line[-1][0])
+        if '普通' in s or '校验码' in s:
+            return '普通发票'
+        if '专用发票' in s or '第二联' in s or '第一联' in s or '凭证' in s or '抵扣' in s or '记账' in s:
+            return '专用发票'
+    return ''
+
+def check_fp(ocr_result, passed, fp):
     fp0 = dict()
+
+    if not passed[0]:
+        fp[0] = check_type(ocr_result)
+        if fp[0]: passed[0] = True
 
     for i, line in enumerate(ocr_result):
         print(i, line)
         # print(i, line[-1][0])
         s = str(line[-1][0])
 
-        # if '小写' in s:
-        #     n = re.search(r'￥(\d+.\d+)',s)
-        #     if n:
-        #         fp[4] = float(m.group(1))
-        # else:
-        m = re.search(r'￥(\d+.\d+)',s)
-        if m:
-            if fp[4] < float(m.group(1)):
-                fp[4] = float(m.group(1))
+        if not passed[5] or not passed[6]:
+            m = re.search(r'(\d+\.\d\d)',s)
+            if m:
+                f = float(m.group(1))
+                if f > float(fp[6]):
+                    fp[6] = f
+                elif f > float(fp[5]):
+                    fp[5] = f
+
+        if (len(s) == 10 or len(s) == 12) and s.isdigit():
+            fp0['发票代码_'] = s
+        if len(s) == 8 and s.isdigit():
+            fp0['发票号码_'] = s
+        if len(s) == 11 and '年' in s:
+            fp0['开票日期_'] = s
 
         try:
             fp0[s.split('：')[0]] = s.split('：')[1]
         except:
             pass
 
-    try:
-        fp[0] = fp0['发票代码']
-        fp[1] = fp0['发票号码']
-        fp[2] = fp0['开票日期'][:4]+fp0['开票日期'][5:7]+fp0['开票日期'][8:10]
-        fp[3] = fp0['校验码'][-6:]
-    except:
-        pass
 
-    passed[0] = len(fp[0]) == 12 and fp[0].isdigit()
-    passed[1] = len(fp[1]) == 8 and fp[0].isdigit()
-    passed[2] = len(fp[2]) == 8 and fp[0].isdigit()
-    passed[3] = len(fp[3]) == 6 and fp[0].isdigit()
-    passed[4] = float(fp[4]) > 0
+    print('\n', fp0)
 
-    return passed, fp
+    if not passed[1]:
+        try:
+            fp[1] = fp0['发票代码']
+            passed[1] = ((len(fp[1]) == 12) or (len(fp[1]) == 10)) and fp[1].isdigit()
+            if not passed[1]: fp[1] = ''
+        except:
+            pass
+
+    if not passed[1]:
+        try:
+            fp[1] = fp0['发票代码_']
+            passed[1] = ((len(fp[1]) == 12) or (len(fp[1]) == 10)) and fp[1].isdigit()
+            if not passed[1]: fp[1] = ''
+        except:
+            pass
+
+    if not passed[2]:
+        try:
+            fp[2] = fp0['发票号码']
+            passed[2] = len(fp[2]) == 8 and fp[2].isdigit()
+            if not passed[2]: fp[2] = ''
+        except:
+            pass
+
+    if not passed[2]:
+        try:
+            fp[2] = fp0['发票号码_']
+            passed[2] = len(fp[2]) == 8 and fp[2].isdigit()
+            if not passed[2]: fp[2] = ''
+        except:
+            pass
+
+
+    if not passed[3]:
+        try:
+            fp[3] = fp0['开票日期'][:4]+fp0['开票日期'][5:7]+fp0['开票日期'][8:10]
+            passed[3] = len(fp[3]) == 8 and fp[3].isdigit()
+            if not passed[3]: fp[3] = ''
+        except:
+            pass
+
+    if not passed[3]:
+        try:
+            fp[3] = fp0['开票日期_'][:4]+fp0['开票日期_'][5:7]+fp0['开票日期_'][8:10]
+            passed[3] = len(fp[3]) == 8 and fp[3].isdigit()
+            if not passed[3]: fp[3] = ''
+        except:
+            pass
+
+    if not passed[4]:
+        try:
+            fp[4] = fp0['校验码'][-6:]
+            passed[4] = len(fp[4]) == 6 and fp[4].isdigit()
+            if not passed[4]: fp[4] = ''
+        except:
+            pass
+
+    passed[5] = float(fp[5]) > 0
+    passed[6] = float(fp[6]) > 0
+
 
 def invoice_data(img_path, rotate=False):
+    passed = [False, False,False,False,False,False,False] # 发票类型, 发票代码, 发票号码, 开票日期, 校验码, 金额, 价税合计
+    fp = ['','','','','',0.00,0.00]
+    #开始识别
     result = ocr_image(img_path,rotate)
-    # 可通过参数控制单独执行识别、检测
-    # result = ocr.ocr(img_path, det=False) 只执行识别
-    # result = ocr.ocr(img_path, rec=False) 只执行检测
-    # 打印检测框和识别结果
-    passed, fp = check_fp(result)
-    print(0, passed)
+    check_fp(result, passed, fp)
+    print(0, passed, fp)
 
+    # 识别率过低则旋转图片,找到识别率比较高的角度
     i = 0
     trues = [t for t in passed if t]
     while len(trues) < (len(passed) - len(trues)) and i < 3:
         result = ocr_image(img_path,rotate=True)
-        passed, fp = check_fp(result)
+        check_fp(result, passed, fp)
         trues = [t for t in passed if t]
         i += 1
-        print(i, passed)
+        print(i, passed, fp)
 
-
+    # 普票未全部识别则局部放大识别
     if len(set(passed)) == 1 and passed[0]:
-        print('all set',passed, fp)
-    else:
+        print('all set',fp)
+    elif fp[0] == '普通发票':
         crop_image(img_path)
-        crop_img_path = '../fp_crop.png'
+        crop_img_path = 'fp_crop.png'
         result = ocr_image(crop_img_path)
-        passed_crop, fp_crop = check_fp(result)
-        for i, t in enumerate(passed):
-            if not t and passed_crop[i]:
-                passed[i] = True
-                fp[i] = fp_crop[i]
+        check_fp(result, passed, fp)
 
+    # 未识别发票类型则旋转图片,找到识别率比较高的角度
+    i = 0
+    while i < 3 and not passed[0]:
+        result = ocr_image(img_path,rotate=True)
+        check_fp(result, passed, fp)
+        i += 1
+        print(i, passed, fp)
+
+    #保存识别结果
+    df = pd.Series(fp)
+    df.to_csv('invoice.csv')
+
+    # 打印识别结果
     if len(set(passed)) == 1 and passed[0]:
         print('all set', fp)
-        df = pd.Series(fp)
-        df.to_csv('invoice.csv')
-        return True
     else:
         print('still to come:', passed, fp)
-        return False
 
+    return passed, fp
 
     # 可视化
-    # from PIL import Image
+    # from paddleocr import draw_ocr
     # image = Image.open(img_path).convert('RGB')
     # boxes = [line[0] for line in result]
     # txts = [line[1][0] for line in result]
@@ -123,8 +193,9 @@ def invoice_data(img_path, rotate=False):
     # im_show = Image.fromarray(im_show)
     # im_show.save('result.jpg')
 
+
 def invoice_verify():
-    df = pd.read_csv('../invoice.csv', index_col=0, dtype=str)
+    df = pd.read_csv('../data/invoice.csv', index_col=0, dtype=str)
     invoice_code        = df.iat[0,0]
     invoice_number      = df.iat[1,0]
     invoice_date        = df.iat[2,0]
@@ -159,7 +230,7 @@ def invoice_verify():
 
 
 if __name__ == '__main__':
-    img_path = '../fp00.jpeg'
+    img_path = 'fp00.jpeg'
     if invoice_data(img_path):
         pass
         invoice_verify()
