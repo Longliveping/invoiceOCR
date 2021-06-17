@@ -2,7 +2,6 @@ from flask import Flask
 from flask_restful import Api as FlaskRestfulAPI, Resource, reqparse, abort
 from werkzeug.datastructures import FileStorage
 from invoice_ocr import invoice_data
-import pandas as pd
 
 ## config
 ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png']
@@ -45,7 +44,7 @@ class UploadImage(Resource):
     put_parser.add_argument('image', required=True, type=FileStorage, location='files')
 
     def get(self):
-        return 'Hello'
+        return 'Hello fp'
 
     def post(self):
         #TODO: a check on file size needs to be there.
@@ -59,34 +58,21 @@ class UploadImage(Resource):
             abort(400, message="File extension is not one of our supported types.")
 
         # create a file object of the image
-        with open('../image.png', 'wb') as f:
+        with open('image.png', 'wb') as f:
             image.save(f)
 
-        if invoice_data('../image.png'):
-            df = pd.read_csv('../invoice.csv', index_col=0, dtype=str)
-            df.index = ['发票代码','发票号码','开票日期','校验码','金额']
-            dic = {
-                df.index[0]: df['0'][0],
-                df.index[1]: df['0'][1],
-                df.index[2]: df['0'][2],
-                df.index[3]: df['0'][3],
-                df.index[4]: f"{float(df['0'][4]):.2f}"
-            }
-
+        passed, fp = invoice_data('image.png')
+        if passed[0]:
+            keys = ['发票类型','发票代码','发票号码','开票日期','校验码','金额','价税合计']
+            dic = dict(zip(keys, fp))
             print(dic)
-
             return (dic)
         else:
-            return 'Not OK'
+            return 'NOT OK'
 
-
-class Main(Resource):
-    def get(self):
-        return "Hello World"
 
 api.add_resource(UploadImage, '/upload_image')
-api.add_resource(Main, '/')
 
 if __name__ == "__main__":
     # Only for debugging while developing
-    app.run(host='0.0.0.0', debug=True, port=80)
+    app.run(host='0.0.0.0', debug=True, port=8080)
