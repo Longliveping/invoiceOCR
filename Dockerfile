@@ -1,13 +1,11 @@
-FROM tiangolo/uwsgi-nginx-flask:python3.7
+FROM registry.baidubce.com/paddlepaddle/paddle:2.0.0
 
-COPY ./app /app
+RUN pip3.7 install --upgrade pip -i https://mirror.baidu.com/pypi/simple
 
-COPY ./requirements.txt /requirements.txt
+RUN git clone https://github.com/Longliveping/invoiceOCR.git /invoiceOCR
 
-WORKDIR /
+WORKDIR /invoiceOCR
 
-RUN pip install -r requirements.txt -i https://mirror.baidu.com/pypi/simple
+RUN pip3.7 install -r requirements.txt -i https://mirror.baidu.com/pypi/simple
 
-ENTRYPOINT [ "python3" ]
-
-CMD [ "app/main.py" ]
+CMD ["python3", "/app/main.py" ]
